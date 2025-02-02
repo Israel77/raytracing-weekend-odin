@@ -4,7 +4,7 @@ import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 import "core:math/rand"
-import "core:mem"
+import "core:mem/virtual"
 import "core:os"
 import "core:slice"
 import "core:strings"
@@ -81,19 +81,19 @@ main :: proc() {
 
 	rt_context: RaytracerContext
 	// World
-	rt_context.world = setup_world()
+	rt_context.world = world_init()
 
 	// Camera setup
-	rt_context.camera = setup_camera(IMAGE_WIDTH, IMAGE_HEIGHT)
+	rt_context.camera = camera_init(IMAGE_WIDTH, IMAGE_HEIGHT)
 
 	pixel_colors := make_slice([]Color, IMAGE_WIDTH * IMAGE_HEIGHT)
 
 	for j in 0 ..< IMAGE_HEIGHT {
 		for i in 0 ..< IMAGE_WIDTH {
+
             pixel := PixelCoords{i, j}
 
             paint_pixel(&rt_context, pixel, pixel_colors)
-
 		}
 	}
 
@@ -142,7 +142,7 @@ pixel_comparator :: proc(a: PixelCoords, b: PixelCoords) -> (order: slice.Orderi
 }
 
 
-setup_world :: proc() -> []Hittable {
+world_init :: proc() -> []Hittable {
 	world: [dynamic]Hittable
 
 	append(&world, Hittable(Sphere{Vec3{0, 0, -1}, 0.5}))
@@ -151,10 +151,10 @@ setup_world :: proc() -> []Hittable {
 	return world[:]
 }
 
-setup_camera :: proc "contextless" (image_width: int, image_height: int) -> Camera {
+camera_init :: proc "contextless" (image_width: int, image_height: int) -> Camera {
 	camera: Camera
 
-    camera.samples_per_pixel = 100
+    camera.samples_per_pixel = 10
 	camera.focal_length = 1.0
 	camera.viewport.height = 2.0
 	// Use the exact ratio between IMAGE_WIDTH and IMAGE_HEIGHT instead of ASPECT_RATIO
