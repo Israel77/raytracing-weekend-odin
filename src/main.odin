@@ -3,6 +3,7 @@ package main
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
+import "core:math/rand"
 import "core:mem"
 import "core:os"
 import "core:slice"
@@ -22,6 +23,7 @@ Ray :: struct {
 
 Camera :: struct {
 	focal_length: f64,
+    samples_per_pixel: int,
 	center:       Vec3,
 	viewport:     Viewport,
 }
@@ -88,12 +90,10 @@ main :: proc() {
 
 	for j in 0 ..< IMAGE_HEIGHT {
 		for i in 0 ..< IMAGE_WIDTH {
+            pixel := PixelCoords{i, j}
 
-			pixel: PixelCoords
-			pixel.x = i
-			pixel.y = j
+            paint_pixel(&rt_context, pixel, pixel_colors)
 
-			paint_pixel(&rt_context, pixel, pixel_colors)
 		}
 	}
 
@@ -105,16 +105,23 @@ main :: proc() {
 
 paint_pixel :: proc(rt_context: ^RaytracerContext, pixel: PixelCoords, pixel_colors: []Color) {
 
-	pixel_center :=
-		rt_context.camera.viewport.starting_pixel_center +
-		f64(pixel.x) * rt_context.camera.viewport.delta_u +
-		f64(pixel.y) * rt_context.camera.viewport.delta_v
+    pixel_color: Color
+    pixel_samples_scale := 1.0 / f64(rt_context.camera.samples_per_pixel)
 
-	ray_direction := pixel_center - rt_context.camera.center
-	ray := Ray{rt_context.camera.center, ray_direction}
-	pixel_color := ray_color(&ray, rt_context.world[:])
+    for _ in 0..<rt_context.camera.samples_per_pixel {
+        offset := Vec3{rand.float64() - 0.5, rand.float64() - 0.5, 0}
+        pixel_center :=
+            rt_context.camera.viewport.starting_pixel_center +
+            (f64(pixel.x) + offset.x) * rt_context.camera.viewport.delta_u +
+            (f64(pixel.y) + offset.y) * rt_context.camera.viewport.delta_v
 
-	pixel_colors[get_index(pixel, IMAGE_WIDTH)] = pixel_color
+        ray_direction := pixel_center - rt_context.camera.center
+        ray := Ray{rt_context.camera.center, ray_direction}
+
+        pixel_color += pixel_samples_scale * ray_color(&ray, rt_context.world[:])
+    }
+
+    pixel_colors[get_index(pixel, IMAGE_WIDTH)] = pixel_color
 }
 
 get_index :: proc "contextless" (pixel: PixelCoords, image_width: int) -> (index: int) {
@@ -127,9 +134,9 @@ pixel_comparator :: proc(a: PixelCoords, b: PixelCoords) -> (order: slice.Orderi
 	index_a := a.x + IMAGE_WIDTH * a.y
 	index_b := b.x + IMAGE_WIDTH * b.y
 
-	if (index_a == index_b)     {order = .Equal}
-    else if (index_a < index_b) {order = .Less}
-    else if (index_a > index_b) {order = .Greater}
+	if      (index_a == index_b) {order = .Equal}
+    else if (index_a < index_b)  {order = .Less}
+    else if (index_a > index_b)  {order = .Greater}
 
 	return
 }
@@ -147,6 +154,7 @@ setup_world :: proc() -> []Hittable {
 setup_camera :: proc "contextless" (image_width: int, image_height: int) -> Camera {
 	camera: Camera
 
+    camera.samples_per_pixel = 100
 	camera.focal_length = 1.0
 	camera.viewport.height = 2.0
 	// Use the exact ratio between IMAGE_WIDTH and IMAGE_HEIGHT instead of ASPECT_RATIO
