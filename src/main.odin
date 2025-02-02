@@ -1,14 +1,12 @@
 package main
 
-import "core:os"
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
-import "core:strings"
 import "core:mem"
+import "core:os"
 import "core:slice"
-import "core:thread"
-import "core:sync"
+import "core:strings"
 
 Color :: distinct linalg.Vector3f64
 Vec3 :: linalg.Vector3f64
@@ -18,260 +16,269 @@ IMAGE_WIDTH :: 1600
 ASPECT_RATIO :: f32(16.) / f32(9.)
 
 Ray :: struct {
-    origin: Vec3,
-    direction: Vec3
+	origin:    Vec3,
+	direction: Vec3,
 }
 
 Camera :: struct {
-    focal_length: f64,
-    center: Vec3,
-    viewport: Viewport,
+	focal_length: f64,
+	center:       Vec3,
+	viewport:     Viewport,
 }
 
 Viewport :: struct {
-    width: f64,
-    height: f64,
-    u: Vec3,
-    v: Vec3,
-    delta_u: Vec3,
-    delta_v: Vec3,
-    starting_pixel_center: Vec3,
+	width:                 f64,
+	height:                f64,
+	u:                     Vec3,
+	v:                     Vec3,
+	delta_u:               Vec3,
+	delta_v:               Vec3,
+	starting_pixel_center: Vec3,
 }
 
 Sphere :: struct {
-    center: Vec3,
-    radius: f64
+	center: Vec3,
+	radius: f64,
 }
 
 Hittable :: union {
-    Sphere,
-    []Hittable
+	Sphere,
+	[]Hittable,
 }
 
 HitRecord :: struct {
-    front_face: bool,
-    point: Vec3,
-    normal: Vec3,
-    t: f64,
+	front_face: bool,
+	point:      Vec3,
+	normal:     Vec3,
+	t:          f64,
 }
 
-Pixel :: struct {
-    x: int,
-    y: int,
-    color: Color
+PixelCoords :: struct {
+	x: int,
+	y: int,
 }
 
 RaytracerContext :: struct {
-    world: []Hittable,
-    camera: Camera,
+	world:  []Hittable,
+	camera: Camera,
 }
 
-main  :: proc() {
-    IMAGE_HEIGHT := int(math.floor(IMAGE_WIDTH / ASPECT_RATIO))
-    IMAGE_HEIGHT = IMAGE_HEIGHT >= 1 ? IMAGE_HEIGHT : 1
+main :: proc() {
+	IMAGE_HEIGHT := int(math.floor(IMAGE_WIDTH / ASPECT_RATIO))
+	IMAGE_HEIGHT = IMAGE_HEIGHT >= 1 ? IMAGE_HEIGHT : 1
 
-    // File setup
-    fd, err := os.open(FILE_PATH, os.O_CREATE | os.O_WRONLY)
-    defer os.close(fd)
-    if err != nil {
-        fmt.eprintf(os.error_string(err))
-        panic("Could not find or create file descriptor")
-    }
+	// File setup
+	fd, err := os.open(FILE_PATH, os.O_CREATE | os.O_WRONLY)
+	defer os.close(fd)
+	if err != nil {
+		fmt.eprintf(os.error_string(err))
+		panic("Could not find or create file descriptor")
+	}
 
-    os.write_string(fd, fmt.tprintfln("P3\n%d %d\n255", IMAGE_WIDTH, IMAGE_HEIGHT))
+	os.write_string(fd, fmt.tprintfln("P3\n%d %d\n255", IMAGE_WIDTH, IMAGE_HEIGHT))
 
-    rt_context: RaytracerContext
-    // World
-    rt_context.world = setup_world()
+	rt_context: RaytracerContext
+	// World
+	rt_context.world = setup_world()
 
-    // Camera setup
-    rt_context.camera = setup_camera(IMAGE_WIDTH, IMAGE_HEIGHT)
+	// Camera setup
+	rt_context.camera = setup_camera(IMAGE_WIDTH, IMAGE_HEIGHT)
 
-    pixels := make_slice([]Pixel, IMAGE_WIDTH * IMAGE_HEIGHT)
-    pixel_colors := make_slice([]Color, IMAGE_WIDTH * IMAGE_HEIGHT)
+	pixel_colors := make_slice([]Color, IMAGE_WIDTH * IMAGE_HEIGHT)
 
+	for j in 0 ..< IMAGE_HEIGHT {
+		for i in 0 ..< IMAGE_WIDTH {
 
-    for j in 0..<IMAGE_HEIGHT {
-        for i in 0..<IMAGE_WIDTH {
+			pixel: PixelCoords
+			pixel.x = i
+			pixel.y = j
 
-            pixel_center := rt_context.camera.viewport.starting_pixel_center \
-                            + f64(i) * rt_context.camera.viewport.delta_u \
-                            + f64(j) * rt_context.camera.viewport.delta_v
+			paint_pixel(&rt_context, pixel, pixel_colors)
+		}
+	}
 
-            ray_direction := pixel_center - rt_context.camera.center
-            ray := Ray{rt_context.camera.center, ray_direction}
-            pixel_color := ray_color(&ray, rt_context.world[:])
+	fmt.println("Writing file to disk...")
+	write_colors(fd, pixel_colors[:])
 
+	fmt.println("Done")
+}
 
-            pixel: Pixel
-            pixel.x = i
-            pixel.y = j
-            pixel.color = pixel_color
+paint_pixel :: proc(rt_context: ^RaytracerContext, pixel: PixelCoords, pixel_colors: []Color) {
 
-            index := pixel.x + IMAGE_WIDTH * pixel.y
-            pixels[index] = pixel
-        }
-    }
+	pixel_center :=
+		rt_context.camera.viewport.starting_pixel_center +
+		f64(pixel.x) * rt_context.camera.viewport.delta_u +
+		f64(pixel.y) * rt_context.camera.viewport.delta_v
 
-    // Sort by index
-    fmt.println("Sorting pixels...")
-    slice.sort_by_cmp(pixels[:], pixel_comparator)
+	ray_direction := pixel_center - rt_context.camera.center
+	ray := Ray{rt_context.camera.center, ray_direction}
+	pixel_color := ray_color(&ray, rt_context.world[:])
 
+	pixel_colors[get_index(pixel, IMAGE_WIDTH)] = pixel_color
+}
 
-    for pixel, i in pixels {
-        pixel_colors[i] = pixel.color
-    }
+get_index :: proc "contextless" (pixel: PixelCoords, image_width: int) -> (index: int) {
+	index = pixel.x + image_width * pixel.y
+	return
+}
 
-    fmt.println("Writing file to disk...")
-    write_colors(fd, pixel_colors[:])
+pixel_comparator :: proc(a: PixelCoords, b: PixelCoords) -> (order: slice.Ordering) {
 
-    fmt.println("Done")
+	index_a := a.x + IMAGE_WIDTH * a.y
+	index_b := b.x + IMAGE_WIDTH * b.y
+
+	if (index_a == index_b)     {order = .Equal}
+    else if (index_a < index_b) {order = .Less}
+    else if (index_a > index_b) {order = .Greater}
+
+	return
 }
 
 
 setup_world :: proc() -> []Hittable {
-    world: [dynamic] Hittable
+	world: [dynamic]Hittable
 
-    append(&world, Hittable(Sphere{Vec3{0,0,-1}, 0.5}))
-    append(&world, Hittable(Sphere{Vec3{0,-100.5,-1}, 100}))
+	append(&world, Hittable(Sphere{Vec3{0, 0, -1}, 0.5}))
+	append(&world, Hittable(Sphere{Vec3{0, -100.5, -1}, 100}))
 
-    return world[:]
+	return world[:]
 }
 
-setup_camera :: proc "contextless" (image_width:int, image_height: int) -> Camera {
-    camera: Camera
+setup_camera :: proc "contextless" (image_width: int, image_height: int) -> Camera {
+	camera: Camera
 
-    camera.focal_length = 1.0
-    camera.viewport.height = 2.0
-    // Use the exact ratio between IMAGE_WIDTH and IMAGE_HEIGHT instead of ASPECT_RATIO
-    // due to the previous rounding step when calculating IMAGE_HEIGHT
-    camera.viewport.width = camera.viewport.height * f64(image_width) / f64(image_height)
-    camera.center = Vec3{0.0, 0.0, 0.0}
+	camera.focal_length = 1.0
+	camera.viewport.height = 2.0
+	// Use the exact ratio between IMAGE_WIDTH and IMAGE_HEIGHT instead of ASPECT_RATIO
+	// due to the previous rounding step when calculating IMAGE_HEIGHT
+	camera.viewport.width = camera.viewport.height * f64(image_width) / f64(image_height)
+	camera.center = Vec3{0.0, 0.0, 0.0}
 
-    // Vectors that span each axis of the 2d viewport
-    camera.viewport.u = Vec3{camera.viewport.width, 0, 0}
-    camera.viewport.v = Vec3{0, -camera.viewport.height, 0}
+	// Vectors that span each axis of the 2d viewport
+	camera.viewport.u = Vec3{camera.viewport.width, 0, 0}
+	camera.viewport.v = Vec3{0, -camera.viewport.height, 0}
 
-    // Basis for the viewport coordinates
-    camera.viewport.delta_u = camera.viewport.u / f64(image_width)
-    camera.viewport.delta_v = camera.viewport.v / f64(image_height)
+	// Basis for the viewport coordinates
+	camera.viewport.delta_u = camera.viewport.u / f64(image_width)
+	camera.viewport.delta_v = camera.viewport.v / f64(image_height)
 
-    upper_left := camera.center  \
-        - Vec3{0, 0, camera.focal_length} \
-        - camera.viewport.u / 2 \
-        - camera.viewport.v / 2
+	upper_left :=
+		camera.center -
+		Vec3{0, 0, camera.focal_length} -
+		camera.viewport.u / 2 -
+		camera.viewport.v / 2
 
-    camera.viewport.starting_pixel_center = upper_left + 0.5 * (camera.viewport.delta_u + camera.viewport.delta_v)
+	camera.viewport.starting_pixel_center =
+		upper_left + 0.5 * (camera.viewport.delta_u + camera.viewport.delta_v)
 
 
-    return camera
+	return camera
 }
 
 // #region: HitRecord methods
 set_face_normal :: proc(self: ^HitRecord, ray: ^Ray, outward_normal: ^Vec3) {
-    self.front_face = linalg.dot(ray.direction, outward_normal^) < 0
-    self.normal = self.front_face ? outward_normal^ : -outward_normal^
+	self.front_face = linalg.dot(ray.direction, outward_normal^) < 0
+	self.normal = self.front_face ? outward_normal^ : -outward_normal^
 }
 // #endregion
 
 // #region: Hittable methods
-hit :: proc (self: ^Hittable, ray: ^Ray, ray_tmin: f64,  ray_tmax: f64) -> (record: HitRecord, did_hit: bool) {
-    switch hit_type in self {
-    case Sphere:
-        sphere := hit_type
-        // at² - bt - c = 0
-        delta_origin_center := sphere.center - ray.origin
-        a := linalg.dot(ray.direction, ray.direction)
-        //b := -2.0 * linalg.dot(ray.direction, delta_origin_center)
-        // Use h = -b / 2 to simplify calculations
-        h := linalg.dot(ray.direction, delta_origin_center)
-        c := linalg.dot(delta_origin_center, delta_origin_center) - sphere.radius * sphere.radius
+hit :: proc(
+	self: ^Hittable,
+	ray: ^Ray,
+	ray_tmin: f64,
+	ray_tmax: f64,
+) -> (
+	record: HitRecord,
+	did_hit: bool,
+) {
+	switch hit_type in self {
+	case Sphere:
+		sphere := hit_type
+		// at² - bt - c = 0
+		delta_origin_center := sphere.center - ray.origin
+		a := linalg.dot(ray.direction, ray.direction)
+		//b := -2.0 * linalg.dot(ray.direction, delta_origin_center)
+		// Use h = -b / 2 to simplify calculations
+		h := linalg.dot(ray.direction, delta_origin_center)
+		c := linalg.dot(delta_origin_center, delta_origin_center) - sphere.radius * sphere.radius
 
-        discriminant := h * h - a * c
+		discriminant := h * h - a * c
 
-        if discriminant < 0 {
-            did_hit = false
-            return
-        } 
+		if discriminant < 0 {
+			did_hit = false
+			return
+		}
 
-        sqrt_d := math.sqrt(discriminant)
+		sqrt_d := math.sqrt(discriminant)
 
-        // Try the first root
-        root := (h - sqrt_d) / a
-        if (root <= ray_tmin || ray_tmax <= root) {
-            // Try the second root
-            root := (h - sqrt_d) / a
-            if (root <= ray_tmin || ray_tmax <= root) {
-                // Fail if no root meets the criteria
-                did_hit = false
-                return
-            }
-        }
+		// Try the first root
+		root := (h - sqrt_d) / a
+		if (root <= ray_tmin || ray_tmax <= root) {
+			// Try the second root
+			root := (h - sqrt_d) / a
+			if (root <= ray_tmin || ray_tmax <= root) {
+				// Fail if no root meets the criteria
+				did_hit = false
+				return
+			}
+		}
 
-        record.t = root
-        record.point = ray.origin + root * ray.direction
-        outward_normal := (record.point - sphere.center) / sphere.radius
+		record.t = root
+		record.point = ray.origin + root * ray.direction
+		outward_normal := (record.point - sphere.center) / sphere.radius
 
-        // Sets the remaining fields
-        set_face_normal(&record, ray, &outward_normal)
-        did_hit = true
-        return
+		// Sets the remaining fields
+		set_face_normal(&record, ray, &outward_normal)
+		did_hit = true
+		return
 
-    case []Hittable:
+	case []Hittable:
+		objects := hit_type
+		closest_so_far := ray_tmax
 
-        objects := hit_type
-        closest_so_far :=  ray_tmax
+		for &object in objects {
 
-        for &object in objects {
+			temp_record, temp_hit := hit(&object, ray, ray_tmin, closest_so_far)
 
-            temp_record, temp_hit := hit(&object, ray, ray_tmin, closest_so_far)
+			if temp_hit {
+				did_hit = true
+				closest_so_far = temp_record.t
+				record = temp_record
+			}
+		}
 
-            if temp_hit {
-                did_hit = true
-                closest_so_far = temp_record.t
-                record = temp_record
-            }
-        }
+		return
+	}
 
-        return
-    }
-
-    unreachable() 
+	unreachable()
 }
 // #endregion: Hittable methods
 
 write_colors :: proc(fd: os.Handle, pixel_colors: []Color) {
 
-    builder: strings.Builder
-    for pixel_color in pixel_colors {
-        output_r := int(255.99 * pixel_color.r)
-        output_g := int(255.99 * pixel_color.g)
-        output_b := int(255.99 * pixel_color.b)
+	builder: strings.Builder
+	for pixel_color in pixel_colors {
+		output_r := int(255.99 * pixel_color.r)
+		output_g := int(255.99 * pixel_color.g)
+		output_b := int(255.99 * pixel_color.b)
 
-        fmt.sbprintfln(&builder, "%d %d %d", output_r, output_g,  output_b)
-    }
+		fmt.sbprintfln(&builder, "%d %d %d", output_r, output_g, output_b)
+	}
 
-    os.write_string(fd, strings.to_string(builder))
+	os.write_string(fd, strings.to_string(builder))
 }
 
-ray_color :: proc (ray: ^Ray, world: []Hittable) -> Color {
+ray_color :: proc(ray: ^Ray, world: []Hittable) -> Color {
 
-    world_hittable := Hittable(world)
-    hit_record, did_hit := hit(&world_hittable, ray, 0.0, math.inf_f64(1))
-    if did_hit {
-        return 0.5 * (Color(hit_record.normal) + Color{1.0, 1.0, 1.0})
-    }
+	world_hittable := Hittable(world)
+	hit_record, did_hit := hit(&world_hittable, ray, 0.0, math.inf_f64(1))
+	if did_hit {
+		return 0.5 * (Color(hit_record.normal) + Color{1.0, 1.0, 1.0})
+	}
 
 
-    unit_direction := linalg.vector_normalize(ray.direction)
-    t := 0.5 * (unit_direction.y + 1.0)
-    return (1-t) * Color {1.0, 1.0, 1.0} + t * Color{0.5, 0.7, 1.0}
-}
-
-pixel_comparator:: proc(a: Pixel, b: Pixel) -> slice.Ordering {
-
-    index_a := a.x + IMAGE_WIDTH * a.y
-    index_b := b.x + IMAGE_WIDTH * b.y
-
-    return slice.cmp(index_a, index_b)
+	unit_direction := linalg.vector_normalize(ray.direction)
+	t := 0.5 * (unit_direction.y + 1.0)
+	return (1 - t) * Color{1.0, 1.0, 1.0} + t * Color{0.5, 0.7, 1.0}
 }
