@@ -1,7 +1,8 @@
 package raytracer;
 
-import "core:math/linalg"
 import "core:math"
+import "core:math/rand"
+import "core:math/linalg"
 
 Color :: distinct linalg.Vector3f64
 Vec3 :: linalg.Vector3f64
@@ -11,17 +12,13 @@ Ray :: struct {
 	direction: Vec3,
 }
 
-Hittable :: union {
-	Sphere,
-	[]Hittable,
-}
-
-ray_color :: proc(ray: ^Ray, world: []Hittable) -> Color {
+ray_color :: proc(ray: ^Ray, world: []Hittable, depth: int) -> Color {
 
 	world_hittable := Hittable(world)
-	hit_record, did_hit := hit(&world_hittable, ray, 0.0, math.inf_f64(1))
+	hit_record, did_hit := hit(&world_hittable, ray, 1e-3, math.inf_f64(1))
 	if did_hit {
-		return 0.5 * (Color(hit_record.normal) + Color{1.0, 1.0, 1.0})
+        direction := random_unit_on_hemisphere(hit_record.normal) + random_unit_vector()
+		return 0.5 * ray_color(&Ray{hit_record.point, direction}, world, depth-1)
 	}
 
 

@@ -1,10 +1,11 @@
 package raytracer
 
 Camera :: struct {
-	focal_length: f64,
-    samples_per_pixel: int,
-	center:       Vec3,
-	viewport:     Viewport,
+	focal_length:      f64,
+	samples_per_pixel: int,
+    max_depth:         int,
+	center:            Vec3,
+	viewport:          Viewport,
 }
 
 Viewport :: struct {
@@ -20,8 +21,10 @@ Viewport :: struct {
 camera_init :: proc "contextless" (image_width: int, image_height: int) -> Camera {
 	camera: Camera
 
-    camera.samples_per_pixel = 10
 	camera.focal_length = 1.0
+    camera.samples_per_pixel = 10
+    camera.max_depth = 10
+
 	camera.viewport.height = 2.0
 	// Use the exact ratio between IMAGE_WIDTH and IMAGE_HEIGHT instead of ASPECT_RATIO
 	// due to the previous rounding step when calculating IMAGE_HEIGHT

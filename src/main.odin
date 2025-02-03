@@ -61,12 +61,20 @@ write_colors :: proc(fd: os.Handle, pixel_colors: []Color) {
 
 	builder: strings.Builder
 	for pixel_color in pixel_colors {
-		output_r := int(255.99 * pixel_color.r)
-		output_g := int(255.99 * pixel_color.g)
-		output_b := int(255.99 * pixel_color.b)
+		output_r := int(255.99 * linear_to_gamma(pixel_color.r))
+		output_g := int(255.99 * linear_to_gamma(pixel_color.g))
+		output_b := int(255.99 * linear_to_gamma(pixel_color.b))
 
 		fmt.sbprintfln(&builder, "%d %d %d", output_r, output_g, output_b)
 	}
 
 	os.write_string(fd, strings.to_string(builder))
+}
+
+linear_to_gamma :: proc "contextless" (linear_component: f64) -> f64 {
+    if linear_component > 0 {
+        return math.sqrt(linear_component)
+    } else {
+        return 0
+    }
 }

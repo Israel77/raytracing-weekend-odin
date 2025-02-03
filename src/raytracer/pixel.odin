@@ -23,7 +23,7 @@ paint_pixel :: proc(rt_context: ^RaytracerContext, pixel: PixelCoords, image_wid
         ray_direction := pixel_center - rt_context.camera.center
         ray := Ray{rt_context.camera.center, ray_direction}
 
-        pixel_color += pixel_samples_scale * ray_color(&ray, rt_context.world[:])
+        pixel_color += pixel_samples_scale * ray_color(&ray, rt_context.world[:], rt_context.camera.max_depth)
     }
 
     pixel_colors[get_index(pixel, image_width)] = pixel_color
