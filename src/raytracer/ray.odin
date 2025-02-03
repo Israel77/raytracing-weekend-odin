@@ -17,8 +17,12 @@ ray_color :: proc(ray: ^Ray, world: []Hittable, depth: int) -> Color {
 	world_hittable := Hittable(world)
 	hit_record, did_hit := hit(&world_hittable, ray, 1e-3, math.inf_f64(1))
 	if did_hit {
-        direction := random_unit_on_hemisphere(hit_record.normal) + random_unit_vector()
-		return 0.5 * ray_color(&Ray{hit_record.point, direction}, world, depth-1)
+        did_scatter, scattered_ray, attenuation := scatter(&hit_record.material, ray, &hit_record)
+        if did_scatter {
+            return attenuation * ray_color(&scattered_ray, world, depth-1)
+        }
+
+        return Color{0,0,0}
 	}
 
 

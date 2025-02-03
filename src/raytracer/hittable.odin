@@ -1,11 +1,12 @@
-package raytracer 
+package raytracer
 
-import "core:math/linalg"
 import "core:math"
+import "core:math/linalg"
 
 Sphere :: struct {
-	center: Vec3,
-	radius: f64,
+	center:   Vec3,
+	radius:   f64,
+	material: Material,
 }
 
 Hittable :: union {
@@ -18,6 +19,7 @@ HitRecord :: struct {
 	point:      Vec3,
 	normal:     Vec3,
 	t:          f64,
+	material:   Material,
 }
 
 RaytracerContext :: struct {
@@ -28,8 +30,16 @@ RaytracerContext :: struct {
 world_init :: proc() -> []Hittable {
 	world: [dynamic]Hittable
 
-	append(&world, Hittable(Sphere{Vec3{0, 0, -1}, 0.5}))
-	append(&world, Hittable(Sphere{Vec3{0, -100.5, -1}, 100}))
+	material_ground := Lambertian{Color{0.8, 0.8, 0.0}}
+	material_center := Lambertian{Color{0.1, 0.2, 0.5}}
+	material_left := Metal{Color{0.8, 0.8, 0.8}}
+	material_right := Metal{Color{0.8, 0.6, 0.2}}
+
+
+	append(&world, Hittable(Sphere{Vec3{ 0.0, -100.5, -1.0}, 100, material_ground}))
+	append(&world, Hittable(Sphere{Vec3{ 0.0,    0.0, -1.2}, 0.5, material_center}))
+	append(&world, Hittable(Sphere{Vec3{-1.0,    0.0, -1.0}, 0.5, material_left  }))
+	append(&world, Hittable(Sphere{Vec3{ 1.0,    0.0, -1.0}, 0.5, material_right }))
 
 	return world[:]
 }
@@ -76,6 +86,7 @@ hit :: proc(
 			}
 		}
 
+		record.material = sphere.material
 		record.t = root
 		record.point = ray.origin + root * ray.direction
 		outward_normal := (record.point - sphere.center) / sphere.radius
