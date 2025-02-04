@@ -3,7 +3,12 @@ package raytracer
 import "core:math"
 import "core:math/linalg"
 import "core:math/rand"
+import "core:fmt" 
 
+
+unit_vector :: proc  (v: Vec3) -> Vec3 {
+    return v / linalg.length(v)
+}
 
 random_unit_vector ::  proc () -> Vec3 {
     for {
@@ -36,4 +41,14 @@ is_near_zero :: proc(self: ^Vec3) -> bool {
 
 reflect :: proc(v: Vec3, normal: Vec3) -> Vec3 {
     return v - 2 * linalg.dot(v, normal) * normal
+}
+
+refract :: proc(v: Vec3, normal: Vec3, refraction_index: f64) -> Vec3 {
+    cos_theta := math.min(linalg.dot(-v, normal), 1.0)
+    out_perpendicular: Vec3 = refraction_index * (v + cos_theta * normal)
+    out_parallel: Vec3 = -math.sqrt(math.abs(1.0 - linalg.dot(out_perpendicular, out_perpendicular))) * normal
+
+    result := out_perpendicular + out_parallel
+
+    return  result
 }

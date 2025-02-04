@@ -32,13 +32,17 @@ world_init :: proc() -> []Hittable {
 
 	material_ground := Lambertian{Color{0.8, 0.8, 0.0}}
 	material_center := Lambertian{Color{0.1, 0.2, 0.5}}
-	material_left := Metal{Color{0.8, 0.8, 0.8}, 0.3}
+    // Glass sphere
+	material_left := Dielectric{1.5}
+    // Air bubble inside the glass
+	material_bubble := Dielectric{1.0 / 1.5}
 	material_right := Metal{Color{0.8, 0.6, 0.2}, 1.0}
 
 
 	append(&world, Hittable(Sphere{Vec3{ 0.0, -100.5, -1.0}, 100, material_ground}))
 	append(&world, Hittable(Sphere{Vec3{ 0.0,    0.0, -1.2}, 0.5, material_center}))
 	append(&world, Hittable(Sphere{Vec3{-1.0,    0.0, -1.0}, 0.5, material_left  }))
+	append(&world, Hittable(Sphere{Vec3{-1.0,    0.0, -1.0}, 0.4, material_bubble}))
 	append(&world, Hittable(Sphere{Vec3{ 1.0,    0.0, -1.0}, 0.5, material_right }))
 
 	return world[:]
