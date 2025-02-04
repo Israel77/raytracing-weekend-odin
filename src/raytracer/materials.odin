@@ -1,11 +1,15 @@
 package raytracer
 
+import "core:math" 
+import "core:math/linalg" 
+
 Lambertian :: struct {
 	albedo: Color,
 }
 
 Metal :: struct {
 	albedo: Color,
+    fuzz: f64,
 }
 
 Material :: union {
@@ -36,7 +40,8 @@ scatter :: proc(
 		attenuation = material_type.albedo
 		did_scatter = true
 	case Metal:
-		direction := reflect(ray.direction, hit_record.normal)
+		reflected := reflect(ray.direction, hit_record.normal)
+		direction := reflected / linalg.length(reflected) + (material_type.fuzz * random_unit_vector())
         scattered = Ray{hit_record.point, direction}
 		attenuation = material_type.albedo
 		did_scatter = true
