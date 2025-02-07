@@ -14,6 +14,10 @@ Ray :: struct {
 
 ray_color :: proc(ray: ^Ray, world: []Hittable, depth: int) -> Color {
 
+    if depth <= 0 {
+        return Color{0,0,0}
+    }
+
 	world_hittable := Hittable(world)
 	hit_record, did_hit := hit(&world_hittable, ray, 1e-3, math.inf_f64(1))
 	if did_hit {

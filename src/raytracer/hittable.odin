@@ -82,7 +82,7 @@ hit :: proc(
 		root := (h - sqrt_d) / a
 		if (root <= ray_tmin || ray_tmax <= root) {
 			// Try the second root
-			root := (h - sqrt_d) / a
+            root = (h + sqrt_d) / a
 			if (root <= ray_tmin || ray_tmax <= root) {
 				// Fail if no root meets the criteria
 				did_hit = false
@@ -99,7 +99,7 @@ hit :: proc(
 		set_face_normal(&record, ray, &outward_normal)
 		did_hit = true
 		return
-
+        
 	case []Hittable:
 		objects := hit_type
 		closest_so_far := ray_tmax

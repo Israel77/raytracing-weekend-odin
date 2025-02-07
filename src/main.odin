@@ -8,6 +8,7 @@ import "core:mem/virtual"
 import "core:os"
 import "core:slice"
 import "core:strings"
+import "core:thread"
 
 import "raytracer"
 
@@ -35,7 +36,7 @@ main :: proc() {
 
 	rt_context: raytracer.RaytracerContext
 	// World
-	rt_context.world = raytracer.world_init()
+	rt_context.world = world_init()
 
 	// Camera setup
 	rt_context.camera = raytracer.camera_init(IMAGE_WIDTH, IMAGE_HEIGHT)
@@ -47,7 +48,8 @@ main :: proc() {
 
 	           pixel := raytracer.PixelCoords{i, j}
 
-	           raytracer.paint_pixel(&rt_context, pixel, IMAGE_WIDTH, pixel_colors)
+               //raytracer.paint_pixel(&rt_context, pixel, IMAGE_WIDTH, pixel_colors)
+	           thread.run_with_poly_data4(&rt_context, pixel, IMAGE_WIDTH, pixel_colors, raytracer.paint_pixel)
 		}
 	}
 
@@ -55,6 +57,29 @@ main :: proc() {
 	write_colors(fd, pixel_colors[:])
 
 	fmt.println("Done")
+}
+
+world_init :: proc() -> []raytracer.Hittable {
+    using raytracer
+
+	world: [dynamic]Hittable
+
+	material_ground := Lambertian{Color{0.8, 0.8, 0.0}}
+	material_center := Lambertian{Color{0.1, 0.2, 0.5}}
+    // Glass sphere
+	material_left := Dielectric{1.5}
+    // Air bubble inside the glass
+	material_bubble := Dielectric{1.0 / 1.5}
+	material_right := Metal{Color{0.8, 0.6, 0.2}, 1.0}
+
+
+	append(&world, Hittable(Sphere{Vec3{ 0.0, -100.5, -1.0}, 100, material_ground}))
+	append(&world, Hittable(Sphere{Vec3{ 0.0,    0.0, -1.2}, 0.5, material_center}))
+	append(&world, Hittable(Sphere{Vec3{-1.0,    0.0, -1.0}, 0.5, material_left  }))
+	append(&world, Hittable(Sphere{Vec3{-1.0,    0.0, -1.0}, 0.4, material_bubble}))
+	append(&world, Hittable(Sphere{Vec3{ 1.0,    0.0, -1.0}, 0.5, material_right }))
+
+	return world[:]
 }
 
 write_colors :: proc(fd: os.Handle, pixel_colors: []Color) {
