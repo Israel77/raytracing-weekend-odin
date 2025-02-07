@@ -17,7 +17,7 @@ Ray :: raytracer.Ray
 Color :: raytracer.Color
 
 FILE_PATH :: "./output.ppm"
-IMAGE_WIDTH :: 1600
+IMAGE_WIDTH :: 1920
 ASPECT_RATIO :: f32(16.) / f32(9.)
 
 main :: proc() {
@@ -64,20 +64,47 @@ world_init :: proc() -> []raytracer.Hittable {
 
 	world: [dynamic]Hittable
 
-	material_ground := Lambertian{Color{0.8, 0.8, 0.0}}
-	material_center := Lambertian{Color{0.1, 0.2, 0.5}}
-    // Glass sphere
-	material_left := Dielectric{1.5}
-    // Air bubble inside the glass
-	material_bubble := Dielectric{1.0 / 1.5}
-	material_right := Metal{Color{0.8, 0.6, 0.2}, 1.0}
+	material_ground := Lambertian{Color{0.5, 0.5, 0.5}}
+    append(&world, Sphere{Vec3{0, -1000, 0}, 1000, material_ground})
 
+    for a in -11..<11 {
+        for b in -11..<11 {
+            pick_material := rand.float64()
+            center := Vec3{f64(a) + 0.9 * rand.float64(), 0.2, f64(b) + 0.9 * rand.float64()} 
 
-	append(&world, Hittable(Sphere{Vec3{ 0.0, -100.5, -1.0}, 100, material_ground}))
-	append(&world, Hittable(Sphere{Vec3{ 0.0,    0.0, -1.2}, 0.5, material_center}))
-	append(&world, Hittable(Sphere{Vec3{-1.0,    0.0, -1.0}, 0.5, material_left  }))
-	append(&world, Hittable(Sphere{Vec3{-1.0,    0.0, -1.0}, 0.4, material_bubble}))
-	append(&world, Hittable(Sphere{Vec3{ 1.0,    0.0, -1.0}, 0.5, material_right }))
+            if linalg.length(center - Vec3{4, 0.2, 0}) > 0.9{
+                if pick_material < 0.8 {
+                    // 80% chance of getting a Lambertian
+                    albedo := Color{rand.float64(),rand.float64() ,rand.float64() }
+                    sphere_material := Lambertian{albedo}
+                    append(&world, Sphere{center, 0.2, sphere_material})
+                }
+                else if pick_material < 0.95{
+                    // 15% chance of getting Metal
+                    shade := rand.float64_uniform(0, 0.5)
+                    fuzz := rand.float64_uniform(0, 0.5)
+                    albedo := Color{shade, shade, shade}
+                    sphere_material := Metal{albedo, fuzz}
+                    append(&world, Sphere{center, 0.2, sphere_material})
+
+                }
+                else {
+                    // 5% chance of getting glass
+                    sphere_material := Dielectric{1.5}
+                    append(&world, Sphere{center, 0.2, sphere_material})
+                }
+            }
+        }
+    }
+
+    material1 := Dielectric{1.5};
+    append(&world, Sphere{Vec3{ 0, 1, 0 }, 1.0, material1});
+
+    material2 := Lambertian{Color{0.4, 0.2, 0.1}};
+    append(&world, Sphere{Vec3{-4, 1, 0}, 1.0, material2});
+
+    material3 := Metal{Color{0.7, 0.6, 0.5}, 0.0};
+    append(&world, Sphere{Vec3{4, 1, 0}, 1.0, material3});
 
 	return world[:]
 }

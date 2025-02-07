@@ -19,6 +19,16 @@ random_unit_vector ::  proc () -> Vec3 {
     }
 }
 
+random_unit_on_disk :: proc() -> Vec3 {
+    for {
+        p := Vec3 {rand.float64_uniform(-1.0, 1.0), rand.float64_uniform(-1.0, 1.0), 0}
+        len_squared := linalg.dot(p, p)
+        if (1e-160 < len_squared && len_squared <= 1) {
+            return p / math.sqrt_f64(len_squared)
+        }
+    }
+}
+
 /*
 * Creates a random unit vector on the same hemisphere as the normal
 */
