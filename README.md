@@ -14,4 +14,4 @@ This will produce the executable `build/raytracer`, run it to get the output ima
 
 Took 2h35m on an AMD Ryzen 7600. Resolution=1920x1080, Max recursion depth = 100, Samples per pixel = 500, No defocus blur.
 
-[Rendering with random spheres](output.png)
+![Rendering with random spheres](output.png)
